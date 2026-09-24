@@ -1,0 +1,33 @@
+name: Wetter Neuzeug
+
+on:
+  schedule:
+    # GitHub rechnet in UTC. 05:00 UTC = 07:00 im Sommer, 06:00 UTC = 07:00 im Winter.
+    # Der Schritt "Uhrzeit prüfen" sorgt dafür, dass nur der passende Lauf sendet.
+    - cron: "0 5 * * *"
+    - cron: "0 6 * * *"
+  workflow_dispatch:   # erlaubt manuelles Starten zum Testen
+
+jobs:
+  senden:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code holen
+        uses: actions/checkout@v4
+
+      - name: Uhrzeit prüfen (nur 7 Uhr Wiener Zeit)
+        id: zeit
+        run: |
+          H=$(TZ=Europe/Vienna date +%H)
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$H" != "07" ]; then
+            echo "Wiener Zeit ist $H Uhr - kein Versand."
+            echo "senden=nein" >> "$GITHUB_OUTPUT"
+          else
+            echo "senden=ja" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wetter senden
+        if: steps.zeit.outputs.senden == 'ja'
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python3 wetter_neuzeug.py
